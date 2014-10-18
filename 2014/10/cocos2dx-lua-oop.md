@@ -4,7 +4,7 @@
 
 网路上已经有很多关于lua面向对象开发的文章，为什么我要自己写一篇呢？
 
-一切都是因[cocos2d-x 3.2][1]的lua绑定而起。我们的新项目打算用lua进行开发，一直在跟进[quick-x][2]项目，从独立、第三方，到现在的被触控收编。[cocos2d-x 3.2][1]是最新的稳定版，把很多[quick-x][2]很多好东西吸纳进来。与其说吸纳，不如说是直接把源代码拿过来了。所以，现在[cocos2d-x 3.2][1]直接就支持lua的面向对象开发，提供了原来只有[quick-x][2]才有的[class](https://github.com/cocos2d/cocos2d-x/blob/v3/cocos/scripting/lua-bindings/script/cocos2d/extern.lua)等方法来方便的创建对象以及做继承。
+一切都是因[cocos2d-x 3.2][1]的lua绑定而起。我们的新项目打算用lua进行开发，一直在跟进[quick-x][2]项目，从独立、第三方，到现在的被触控收编。[cocos2d-x 3.2][1]是最新的稳定版，把[quick-x][2]的很多好东西吸纳进来。与其说吸纳，不如说是直接把源代码拿过来了。所以，现在[cocos2d-x 3.2][1]直接就支持lua的面向对象开发，提供了原来只有[quick-x][2]才有的[class](https://github.com/cocos2d/cocos2d-x/blob/v3/cocos/scripting/lua-bindings/script/cocos2d/extern.lua)等方法来方便的创建对象以及做继承。
 
 既然cocos2d-x官方都认为quick-x的东西很好，我也不得不研究一下这套针对lua开发的创建类和继承的方法。不研究不要紧，一研究吓一跳。备受关注的quick-x，把自己宣传的那么好，那么便捷（我刚开始研究quick-x的时候，用它写过一个项目，提供的接口确实很便捷，大大提高了开发效率，但是没有研究实现细节），没想到最最底层，最最基础的部分，创建类、类继承的方案却如此业余，简直是一个刚学lua两三天的“高手”写出来的。说刚学两三天，是因为，从这个方案可以看出，完全没有理解lua语言的真谛，没有做到`thinking in lua`，而“高手”并不是贬义，一般人真的做不出这样的设计，写不出这样的代码。
 
@@ -172,14 +172,14 @@ else
     cls.__create = super
 end
 
-cls.ctor    = function() end  -- 默认构造函数，我认为这里也是有问题的，详见下面的问题2
+cls.ctor    = function() end  -- 默认构造函数，我认为这里有2个问题的，详见下面的问题2和问题3
 cls.__cname = classname  -- 类名
 cls.__ctype = 1  -- 类的类型，代表是从cpp的类（userdata）继承的
 
--- 类的new方法
+-- 类的new方法，同问题3
 function cls.new(...)
     local instance = cls.__create(...)  -- 创建类的实例
-    -- 拷贝所有的元素到实例中，我认为这里也是有问题的，详见下面的问题3
+    -- 拷贝所有的元素到实例中，我认为这里也是有问题的，详见下面的问题4
     for k,v in pairs(cls) do instance[k] = v end
     instance.class = cls  -- 对实例的class进行赋值，可以从实例找到cls
     instance:ctor(...)  -- 调用构造函数
@@ -200,7 +200,11 @@ end
 
 你想到了什么？对，如果super是从cpp类继承的table，那么这里的默认构造函数就屏蔽了父类的构造函数。当然，在构造函数ctor里面有办法调到父类的构造函数的，可以这么做`self.class.super.ctor(self)`。但是回过头来看第一个前提，super是function的时候，super是没有被赋值到`self.class.super`的，所以现在要调用父类的构造函数的话，莫非还要判断一下？
 
-#### 问题3：创建实例时的深度拷贝
+#### 问题3：不能被重复利用的代码
+
+由于lua的随意性，很容易同一份代码被“写了多次”，又由于lua的函数是第一类对象，也就是说函数是可以被动态创建的。那么所有代码中，被我标记了问题3的地方，这些地方的函数，虽然看起来就一份代码，但是被创建出来以后却全是不同的实例。试想一下，每一个新创建的类型（不是类的实例），都包含了一个冗余的代码块，得有多大的代价？（实际开销可能并不大，但总觉得是个浪费。）
+
+#### 问题4：创建实例时的深度拷贝
 
 这是在干嘛呢？拷贝那么多遍干嘛？都已经拷贝一遍到`cls`里面了，再拷贝一遍到`instance`干嘛呢？完全没有`thinking in lua`嘛！这里只需要`setmetatable`就可以了呀。
 
@@ -209,17 +213,17 @@ end
 <pre class="lua">
 -- inherited from Lua Object
 if super then
-    cls = clone(super)  -- 从父类做深度拷贝，又来了，问题4
+    cls = clone(super)  -- 从父类做深度拷贝，又来了，问题5
     cls.super = super  -- 标记父类
 else
-    cls = {ctor = function() end}  -- 父类为空时，创建默认构造函数
+    cls = {ctor = function() end}  -- 父类为空时，创建默认构造函数，同上面的问题3
 end
 
 cls.__cname = classname  -- 保存类名
 cls.__ctype = 2 -- lua  -- 标记这是个lua继承来的类
 cls.__index = cls  -- 为setmetatable做准备
 
--- 类的new方法
+-- 类的new方法，同上面的问题3
 function cls.new(...)
     local instance = setmetatable({}, cls)  -- “正统的”lua类继承来了
     instance.class = cls  -- 对实例的class进行赋值，可以从实例找到cls
@@ -228,13 +232,13 @@ function cls.new(...)
 end
 </pre>
 
-#### 问题4：从父类做深度拷贝
+#### 问题5：从父类做深度拷贝
 
 刚刚从`userdata`做深度还是可以理解的，但是现在是从lua的table做继承呀，放着`setmetatable`不用，又`clone`干嘛呀？
 
 ## 总结
 
-很多观点可能会有人认为偏颇，因为深度拷贝的时候，对于table、function、userdata等数据来说，也只是拷贝一个引用，并没有太大的代价。但我始终固执地认为，既然要用lua，就应该用lua的思维来解决问题，特别是底层的部分。
+很多观点可能会有人认为偏颇，因为大多是深度拷贝的问题，而深度拷贝的时候，对于table、function、userdata等数据来说，也只是拷贝一个引用，并没有太大的代价。但我始终固执地认为，既然要用lua，就应该用lua的思维来解决问题，特别是底层的部分，而且底层的部分，对于内存和执行效率的考虑应该更深入，更全面一些。
 
 不过至少大家可以达成共识，最大的问题就是问题2。
 
