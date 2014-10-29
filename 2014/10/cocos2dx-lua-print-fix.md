@@ -61,7 +61,7 @@ int lua_print(lua_State * luastate)
 }
 </pre>
 
-# 简单的办法
+## 简单的办法
 
 还是这个文件
 
