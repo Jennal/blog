@@ -58,3 +58,7 @@ AppName.app/Contents/Info.plist
 AppName.app/Contents/MacOS
 AppName.app/Contents/MacOS/AppExecutable
 </pre>
+
+## 最后
+
+最后给出我的项目地址：[https://github.com/Jennal/cocos2dx-3.2-qt](https://github.com/Jennal/cocos2dx-3.2-qt)
