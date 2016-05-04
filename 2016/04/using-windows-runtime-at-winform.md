@@ -74,6 +74,12 @@ C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETCore\v4.5
 
 ![](http://jennal.com/wp-content/uploads/2016/04/uwraw-3.png)
 
+如果需要用到`async/await`，还需要添加对`Windows.winmd`的引用，在下面的目录中
+
+<pre>
+C:\Program Files (x86)\Windows Kits\10\UnionMetadata
+</pre>
+
 这样，就可以在WinForm项目中使用Universal的类库啦。
 
 ## 参考资料
